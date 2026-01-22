@@ -1,0 +1,32 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# guidelines for calibration followed from paper 'Calibration of arterial spin labeling data—potential pitfalls in post‐processing' by Pinto et al. 2020; MRM 83(4):1222-1234
+# calibration based on saturation recovery method and voxelwise estimation safed in /fabber_out/*model*/calib_voxelwise/
+
+echo START SCRIPT 11
+cd $folder_nifti/fabber_out
+
+# quantifying perfusion
+for dir in output_modified_model output_old_model; do
+  mkdir $dir/calib_voxelwise
+
+  # correction: divide m0t by LAMBDA (averaged GM and WM)
+  # LAMBDA: blood-brain water partition coefficient (dependent on tissue)
+  
+  # correction: consider T2* correction (exp(TE_VALUE * (1/T2t - 1/T2a)))
+  # TE_VALUE: pCASL echo time
+  # T2t: T2* of tissue
+  # T2a: T2* of arterial blood
+  t2_factor=`echo "e($TE_VALUE * (1/$T2t - 1/$T2a))" | bc -l`
+  fslmaths $folder_nifti/m0/reg_m0_to_asl/m0_fitting/m0_map.nii.gz -div $LAMBDA -mul $t2_factor $dir/calib_voxelwise/m0a.nii.gz
+
+  # correction: according to formula (1)
+  # LABEL_EFF: pCASL labeling efficiency
+  # CGAIN: # additional scaling factor is 10x higher in case of background suppression (i.e. NOT for M0 measurement)
+  fslmaths $dir/mean_ftiss.nii.gz -div $dir/calib_voxelwise/m0a -div $LABEL_EFF -div $CGAIN -mul 6000 $dir/calib_voxelwise/mean_ftiss_calib
+done
+echo END SCRIPT 11
+

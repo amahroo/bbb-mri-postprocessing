@@ -1,0 +1,41 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# M0 to asl registration, distortion-corrected, merged, and saved in /m0/reg_m0_to_asl/
+
+echo START SCRIPT 5
+cd $folder_nifti/m0
+mkdir reg_m0_to_asl
+refimg=$folder_nifti/mask/ref/Encoded_had_4_TI_1_echo_1.nii.gz
+
+# parameters if APPLY_DIST_CORR=true
+readout_duration=`echo "$EPI_FACTOR*$ECHO_SPACING"|bc`
+highest_TI=${M0_TI_VALUES##*,}  # get last M0 TI value for distortion field calculation
+  
+# registration
+for f in *.nii.gz; do
+  flirt -in $f -ref $refimg -out reg_m0_to_asl/"$f"_to_asl -omat reg_m0_to_asl/"$f"_to_ASL.mat -bins 256 -cost mutualinfo -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+done
+cd reg_m0_to_asl
+mkdir m0_results
+
+if [ "$APPLY_DIST_CORR" = true ] ; then
+  # calculate distortion field
+  fslmerge -t m0_merged *$highest_TI*.nii.gz
+  echo -e "-1 0 0 $readout_duration\n1 0 0 $readout_duration" > acq_parameters.txt
+  topup --imain=m0_merged.nii.gz --datain=acq_parameters.txt --config=b02b0.cnf --out=m0_topup_results --fout=m0_field
+
+  # apply distortion field to RL m0 images
+  cp m0_topup_results* m0_results/
+  cp acq_parameters.txt m0_results/
+  fslmerge -t m0_results/m0_RL_merged_wo_corr *_RL*.nii.gz
+  cd m0_results
+  applytopup --imain=m0_RL_merged_wo_corr --datain=acq_parameters.txt --inindex=2 --topup=m0_topup_results --method=jac --out=m0_RL_merged
+else
+  fslmerge -t m0_results/m0_RL_merged *_RL*.nii.gz
+fi
+
+echo END SCRIPT 5
+

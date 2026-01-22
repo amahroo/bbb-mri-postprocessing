@@ -1,0 +1,24 @@
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+tmp/
+temp/
+
+# Outputs (customize to your pipeline)
+output/
+outputs/
+derivatives/
+results/
+*.nii
+*.nii.gz
+
+# Credentials (important)
+.env
+*.key
+*.pem

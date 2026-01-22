@@ -1,0 +1,84 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# SCRIPT WORKS FOR PLD_LENGTH=2 AND ECHOES=8 ONLY !!!!!!
+# apply fabber model and save results in /fabber_out/
+
+echo START SCRIPT 9
+cd $folder_nifti
+mkdir fabber_out
+cd $folder_nifti/encoded/had_8_singlete_had_4_multite_merged
+
+#old model without ITT (intra-voxel time)
+$FSLDEVBINDIR/fabber_asl \
+--output=$folder_nifti/fabber_out/output_old_model \
+--method=vb \
+--data=had_8_singlete_had_4_multite_merged.nii.gz \
+--mask=$folder_nifti/mask/asl_mask \
+--model=asl_multite \
+--infertexch \
+--save-var \
+--save-residuals \
+--save-model-fit \
+--noise=white \
+--t1=$T1t --t1b=$T1a --t2=$T2t --t2b=$T2a \
+--tau1=$SUB8 --tau2=$SUB8 --tau3=$SUB8 --tau4=$SUB8 --tau5=$SUB8 --tau6=$SUB8 --tau7=$SUB8 \
+--tau8=$SUB8 --tau9=$SUB8 --tau10=$SUB8 --tau11=$SUB8 --tau12=$SUB8 --tau13=$SUB8 --tau14=$SUB8 \
+--tau15=$SUB4 --tau16=$SUB4 --tau17=$SUB4  \
+--ti1=`echo "$PLD_START8+1*$SUB8"|bc` --ti2=`echo "$PLD_START8+2*$SUB8"|bc` --ti3=`echo "$PLD_START8+3*$SUB8"|bc` --ti4=`echo "$PLD_START8+4*$SUB8"|bc` \
+--ti5=`echo "$PLD_START8+5*$SUB8"|bc` --ti6=`echo "$PLD_START8+6*$SUB8"|bc` --ti7=`echo "$PLD_START8+7*$SUB8"|bc` \
+--ti8=`echo "$PLD_START8+$PLD_INC+1*$SUB8"|bc` --ti9=`echo "$PLD_START8+$PLD_INC+2*$SUB8"|bc` --ti10=`echo "$PLD_START8+$PLD_INC+3*$SUB8"|bc` \
+--ti11=`echo "$PLD_START8+$PLD_INC+4*$SUB8"|bc` --ti12=`echo "$PLD_START8+$PLD_INC+5*$SUB8"|bc` --ti13=`echo "$PLD_START8+$PLD_INC+6*$SUB8"|bc` \
+--ti14=`echo "$PLD_START8+$PLD_INC+7*$SUB8"|bc` \
+--ti15=`echo "$PLD_START4+1*$SUB4"|bc` --ti16=`echo "$PLD_START4+2*$SUB4"|bc` --ti17=`echo "$PLD_START4+3*$SUB4"|bc` \
+--nte1=1 --nte2=1 --nte3=1 --nte4=1 --nte5=1 --nte6=1 --nte7=1 \
+--nte8=1 --nte9=1 --nte10=1 --nte11=1 --nte12=1 --nte13=1 --nte14=1 \
+--nte15=8 --nte16=8 --nte17=8 \
+--te1=$TE_VALUE --te2=$TE_VALUE --te3=$TE_VALUE --te4=$TE_VALUE --te5=$TE_VALUE --te6=$TE_VALUE --te7=$TE_VALUE \
+--te8=$TE_VALUE --te9=$TE_VALUE --te10=$TE_VALUE --te11=$TE_VALUE --te12=$TE_VALUE --te13=$TE_VALUE --te14=$TE_VALUE \
+--te15=${TE_VALUES_HAD4[0]} --te16=${TE_VALUES_HAD4[1]} --te17=${TE_VALUES_HAD4[2]} --te18=${TE_VALUES_HAD4[3]} \
+--te19=${TE_VALUES_HAD4[4]} --te20=${TE_VALUES_HAD4[5]} --te21=${TE_VALUES_HAD4[6]} --te22=${TE_VALUES_HAD4[7]} \
+--te23=${TE_VALUES_HAD4[0]} --te24=${TE_VALUES_HAD4[1]} --te25=${TE_VALUES_HAD4[2]} --te26=${TE_VALUES_HAD4[3]} \
+--te27=${TE_VALUES_HAD4[4]} --te28=${TE_VALUES_HAD4[5]} --te29=${TE_VALUES_HAD4[6]} --te30=${TE_VALUES_HAD4[7]} \
+--te31=${TE_VALUES_HAD4[0]} --te32=${TE_VALUES_HAD4[1]} --te33=${TE_VALUES_HAD4[2]} --te34=${TE_VALUES_HAD4[3]} \
+--te35=${TE_VALUES_HAD4[4]} --te36=${TE_VALUES_HAD4[5]} --te37=${TE_VALUES_HAD4[6]} --te38=${TE_VALUES_HAD4[7]} \
+--itt=0
+
+# modified model with ITT
+$FSLDEVBINDIR/fabber_asl \
+--output=$folder_nifti/fabber_out/output_modified_model \
+--method=vb \
+--data=had_8_singlete_had_4_multite_merged.nii.gz \
+--mask=$folder_nifti/mask/asl_mask \
+--model=asl_multite \
+--infertexch \
+--save-var \
+--save-residuals \
+--save-model-fit \
+--noise=white \
+--t1=$T1t --t1b=$T1a --t2=$T2t --t2b=$T2a \
+--tau1=$SUB8 --tau2=$SUB8 --tau3=$SUB8 --tau4=$SUB8 --tau5=$SUB8 --tau6=$SUB8 --tau7=$SUB8 \
+--tau8=$SUB8 --tau9=$SUB8 --tau10=$SUB8 --tau11=$SUB8 --tau12=$SUB8 --tau13=$SUB8 --tau14=$SUB8 \
+--tau15=$SUB4 --tau16=$SUB4 --tau17=$SUB4  \
+--ti1=`echo "$PLD_START8+1*$SUB8"|bc` --ti2=`echo "$PLD_START8+2*$SUB8"|bc` --ti3=`echo "$PLD_START8+3*$SUB8"|bc` --ti4=`echo "$PLD_START8+4*$SUB8"|bc` \
+--ti5=`echo "$PLD_START8+5*$SUB8"|bc` --ti6=`echo "$PLD_START8+6*$SUB8"|bc` --ti7=`echo "$PLD_START8+7*$SUB8"|bc` \
+--ti8=`echo "$PLD_START8+$PLD_INC+1*$SUB8"|bc` --ti9=`echo "$PLD_START8+$PLD_INC+2*$SUB8"|bc` --ti10=`echo "$PLD_START8+$PLD_INC+3*$SUB8"|bc` \
+--ti11=`echo "$PLD_START8+$PLD_INC+4*$SUB8"|bc` --ti12=`echo "$PLD_START8+$PLD_INC+5*$SUB8"|bc` --ti13=`echo "$PLD_START8+$PLD_INC+6*$SUB8"|bc` \
+--ti14=`echo "$PLD_START8+$PLD_INC+7*$SUB8"|bc` \
+--ti15=`echo "$PLD_START4+1*$SUB4"|bc` --ti16=`echo "$PLD_START4+2*$SUB4"|bc` --ti17=`echo "$PLD_START4+3*$SUB4"|bc` \
+--nte1=1 --nte2=1 --nte3=1 --nte4=1 --nte5=1 --nte6=1 --nte7=1 \
+--nte8=1 --nte9=1 --nte10=1 --nte11=1 --nte12=1 --nte13=1 --nte14=1 \
+--nte15=8 --nte16=8 --nte17=8 \
+--te1=$TE_VALUE --te2=$TE_VALUE --te3=$TE_VALUE --te4=$TE_VALUE --te5=$TE_VALUE --te6=$TE_VALUE --te7=$TE_VALUE \
+--te8=$TE_VALUE --te9=$TE_VALUE --te10=$TE_VALUE --te11=$TE_VALUE --te12=$TE_VALUE --te13=$TE_VALUE --te14=$TE_VALUE \
+--te15=${TE_VALUES_HAD4[0]} --te16=${TE_VALUES_HAD4[1]} --te17=${TE_VALUES_HAD4[2]} --te18=${TE_VALUES_HAD4[3]} \
+--te19=${TE_VALUES_HAD4[4]} --te20=${TE_VALUES_HAD4[5]} --te21=${TE_VALUES_HAD4[6]} --te22=${TE_VALUES_HAD4[7]} \
+--te23=${TE_VALUES_HAD4[0]} --te24=${TE_VALUES_HAD4[1]} --te25=${TE_VALUES_HAD4[2]} --te26=${TE_VALUES_HAD4[3]} \
+--te27=${TE_VALUES_HAD4[4]} --te28=${TE_VALUES_HAD4[5]} --te29=${TE_VALUES_HAD4[6]} --te30=${TE_VALUES_HAD4[7]} \
+--te31=${TE_VALUES_HAD4[0]} --te32=${TE_VALUES_HAD4[1]} --te33=${TE_VALUES_HAD4[2]} --te34=${TE_VALUES_HAD4[3]} \
+--te35=${TE_VALUES_HAD4[4]} --te36=${TE_VALUES_HAD4[5]} --te37=${TE_VALUES_HAD4[6]} --te38=${TE_VALUES_HAD4[7]} \
+--inferitt
+
+echo END SCRIPT 9

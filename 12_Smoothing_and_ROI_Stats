@@ -1,0 +1,74 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# Registration of fitted parameter maps to structural image to get mean ROI values
+# Gauss smoothing with sigma = (FWHM/2.3548)
+# results saved in /fabber_out/*model*/struc_smooth/
+
+echo START SCRIPT 12
+cd $folder_nifti/fabber_out
+anat=$folder_nifti/anat/t1.anat
+mkdir gm_wm_masks
+
+gauss_sigma=`echo "scale=4;$GAUSS_FILTER_FWHM/2.3548"|bc`
+
+#create gm and wm masks with 50% probability threshold
+fslmaths $anat/T1_fast_pve_1 -thr 0.5 -bin gm_wm_masks/gm_50_mask
+fslmaths $anat/T1_fast_pve_2 -thr 0.5 -bin gm_wm_masks/wm_50_mask
+
+for dir in output_modified_model output_old_model; do
+  mkdir $dir/struc_smooth $dir/struc_smooth/masked
+
+# texch  
+  # Apply plausible bounds post-hoc (Texch in [0, 2] s
+  fslmaths $dir/mean_T_exch -thr 0 -uthr 2 $dir/mean_T_exch_clamped
+  fslmaths $dir/mean_T_exch_clamped -kernel gauss $gauss_sigma -fmean $dir/struc_smooth/texch_s5mm
+
+  # register texch to structural image
+  flirt -in $dir/struc_smooth/texch_s5mm -ref $anat/T1_biascorr_brain.nii.gz -out $dir/struc_smooth/texch_to_struc -omat $dir/struc_smooth/texch_to_struc.mat -bins 256 -cost corratio -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+  # mask the registered texch maps
+  fslmaths $dir/struc_smooth/texch_to_struc -mas gm_wm_masks/gm_50_mask $dir/struc_smooth/masked/texch_to_struc_gm_masked
+  fslmaths $dir/struc_smooth/texch_to_struc -mas gm_wm_masks/wm_50_mask $dir/struc_smooth/masked/texch_to_struc_wm_masked
+  # calculate means
+  fslstats $dir/struc_smooth/masked/texch_to_struc_gm_masked -M >> $dir/struc_smooth/masked/texch_to_struc_gm_50_masked.txt
+  fslstats $dir/struc_smooth/masked/texch_to_struc_wm_masked -M >> $dir/struc_smooth/masked/texch_to_struc_wm_50_masked.txt
+
+# ATT
+  fslmaths $dir/mean_delttiss -kernel gauss $gauss_sigma -fmean $dir/struc_smooth/att_s5mm
+  # register mean_delttiss (ATT) to structural image
+  flirt -in $dir/struc_smooth/att_s5mm -ref $anat/T1_biascorr_brain.nii.gz -out $dir/struc_smooth/mean_delttiss_to_struc -omat $dir/struc_smooth/mean_delttiss_to_struc.mat -bins 256 -cost corratio -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+  # mask the registered maps
+  fslmaths $dir/struc_smooth/mean_delttiss_to_struc -mas gm_wm_masks/gm_50_mask $dir/struc_smooth/masked/mean_delttiss_to_struc_gm_masked
+  fslmaths $dir/struc_smooth/mean_delttiss_to_struc -mas gm_wm_masks/wm_50_mask $dir/struc_smooth/masked/mean_delttiss_to_struc_wm_masked
+  # calculate mean
+  fslstats $dir/struc_smooth/masked/mean_delttiss_to_struc_gm_masked -M >> $dir/struc_smooth/masked/mean_delttiss_to_struc_gm_50_masked.txt
+  fslstats $dir/struc_smooth/masked/mean_delttiss_to_struc_wm_masked -M >> $dir/struc_smooth/masked/mean_delttiss_to_struc_wm_50_masked.txt
+
+# perfusion
+  fslmaths $dir/calib_voxelwise/mean_ftiss_calib -kernel gauss $gauss_sigma -fmean $dir/struc_smooth/perfusion_s5mm
+  # register perfusion to structural image
+  flirt -in $dir/struc_smooth/perfusion_s5mm -ref $anat/T1_biascorr_brain.nii.gz -out $dir/struc_smooth/mean_ftiss_to_struc -omat $dir/struc_smooth/mean_ftiss_to_struc.mat -bins 256 -cost corratio -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+  # mask the registered perfusion maps
+  fslmaths $dir/struc_smooth/mean_ftiss_to_struc -mas gm_wm_masks/gm_50_mask $dir/struc_smooth/masked/mean_ftiss_to_struc_gm_masked
+  fslmaths $dir/struc_smooth/mean_ftiss_to_struc -mas gm_wm_masks/wm_50_mask $dir/struc_smooth/masked/mean_ftiss_to_struc_wm_masked
+  # calculate means
+  fslstats $dir/struc_smooth/masked/mean_ftiss_to_struc_gm_masked -M >> $dir/struc_smooth/masked/mean_ftiss_to_struc_gm_50_masked.txt
+  fslstats $dir/struc_smooth/masked/mean_ftiss_to_struc_wm_masked -M >> $dir/struc_smooth/masked/mean_ftiss_to_struc_wm_50_masked.txt
+done
+echo END SCRIPT 12
+
+# ITT is only estimated in modified model
+for dir in output_modified_model; do
+  fslmaths $dir/mean_ITT -kernel gauss $gauss_sigma -fmean $dir/struc_smooth/itt_s5mm
+  # register ITT to structural image
+  flirt -in $dir/struc_smooth/itt_s5mm -ref $anat/T1_biascorr_brain.nii.gz -out $dir/struc_smooth/mean_ITT_to_struc -omat $dir/struc_smooth/mean_ITT_to_struc.mat -bins 256 -cost corratio -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+  # mask the registered maps
+  fslmaths $dir/struc_smooth/mean_ITT_to_struc -mas gm_wm_masks/gm_50_mask $dir/struc_smooth/masked/mean_ITT_to_struc_gm_masked
+  fslmaths $dir/struc_smooth/mean_ITT_to_struc -mas gm_wm_masks/wm_50_mask $dir/struc_smooth/masked/mean_ITT_to_struc_wm_masked
+  # calculate mean
+  fslstats $dir/struc_smooth/masked/mean_ITT_to_struc_gm_masked -M >> $dir/struc_smooth/masked/mean_ITT_to_struc_gm_50_masked.txt
+  fslstats $dir/struc_smooth/masked/mean_ITT_to_struc_wm_masked -M >> $dir/struc_smooth/masked/mean_ITT_to_struc_wm_50_masked.txt
+done
+

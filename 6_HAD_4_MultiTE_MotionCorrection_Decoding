@@ -1,0 +1,99 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# steps include motion and distortion correction, decoding of Had-4 data, and normalizing 
+# merged results are saved in /encoded/had_4_multite/decoded_asl_space/TIs_preprocessed_merged
+
+echo START SCRIPT 6
+# split encoded images
+cd $folder_nifti/encoded/had_4_multite
+mkdir decoded_asl_space
+cp *Encoded*.nii.gz decoded_asl_space
+cd decoded_asl_space
+fslsplit *Encoded*.nii.gz
+rm *Encoded*.nii.gz
+
+# sort by echoes into "echo_x" folder
+mkdir $(eval echo "echo_{1..$ECHOES}")
+for f in $(eval echo "{1..$ECHOES}"); do
+  if [ "$INNER_LOOP_TI" = true ] ; then
+    if (($((f-1)) < 10)); then 
+      eval mv "vol00{0$((f-1))..$((4*ECHOES-1))..$ECHOES}.nii.gz" "echo_$f"
+    else
+      eval mv "vol00{$((f-1))..$((4*ECHOES-1))..$ECHOES}.nii.gz" "echo_$f"
+    fi
+  else
+    if (($((4*f-4)) < 10)); then
+      eval mv "vol00{0$((4*f-4))..$((4*f-1))..1}.nii.gz" "echo_$f"
+    else
+      eval mv "vol00{$((4*f-4))..$((4*f-1))..1}.nii.gz" "echo_$f"
+    fi
+  fi
+done
+
+# motion correction and decoding of all echoes
+for f in *; do
+  ECHO=$(echo $f | grep -o -E '[0-9]+')
+  mkdir echo_$ECHO/mc
+  
+  # merge all encoded images
+  fslmerge -t echo_$ECHO/mc/images_merged_for_moco echo_$ECHO/*.nii.gz
+  rm echo_$ECHO/*vol*.nii.gz
+
+  # motion correction (separately for each echo because of different contrasts)
+  mcflirt -in echo_$ECHO/mc/images_merged_for_moco -plots -report -reffile $folder_nifti/mask/ref/Encoded_had_4_TI_1_echo_$ECHO -out echo_$ECHO/mc/images_merged_for_moco_mcf
+
+  if [ "$APPLY_DIST_CORR" = true ] ; then
+    # apply distortion field from m0 measurement and split
+    cp $folder_nifti/m0/reg_m0_to_asl/m0_topup_results* ./
+    cp $folder_nifti/m0/reg_m0_to_asl/acq_parameters.txt ./  
+    applytopup --imain=echo_$ECHO/mc/images_merged_for_moco_mcf --datain=acq_parameters.txt --inindex=2 --topup=m0_topup_results --method=jac --out=echo_$ECHO/mc/images_merged_corr
+    fslsplit echo_$ECHO/mc/images_merged_corr echo_$ECHO/vol -t
+  else
+    fslsplit echo_$ECHO/mc/images_merged_for_moco_mcf echo_$ECHO/vol -t
+  fi
+
+  # decoding with following scheme
+  # abs(a-b+c-d) = TI1
+  # abs(a-b-c+d) = TI2
+  # abs(a+b-c-d) = TI3
+  fslmaths echo_$ECHO/vol0000 -sub echo_$ECHO/vol0001 -add echo_$ECHO/vol0002 -sub echo_$ECHO/vol0003 echo_$ECHO/TI_1_echo_$ECHO
+  fslmaths echo_$ECHO/vol0000 -sub echo_$ECHO/vol0001 -sub echo_$ECHO/vol0002 -add echo_$ECHO/vol0003 echo_$ECHO/TI_2_echo_$ECHO
+  fslmaths echo_$ECHO/vol0000 -add echo_$ECHO/vol0001 -sub echo_$ECHO/vol0002 -sub echo_$ECHO/vol0003 echo_$ECHO/TI_3_echo_$ECHO
+  rm echo_$ECHO/*vol*.nii.gz
+done
+
+# sort into TI folders, merge to TI_x_with_all_echoes, and delete echo_x folders
+mkdir TI_{1..3}
+for idx_ti in {1..3}; do
+  for idx_te in $(eval echo "{1..$ECHOES}"); do
+    eval cp echo_$idx_te/TI_${idx_ti}_echo_${idx_te}.nii.gz TI_$idx_ti
+  done
+  fslmerge -t TI_$idx_ti/TI_${idx_ti}_with_all_echoes TI_$idx_ti/*.nii.gz
+done
+rm -rf echo_*
+
+# multiplying with 0.5 to normalize the volumes after Had-4 decoding and merge all TI+TE images into TIs_preprocessed_merged
+mkdir TIs_preprocessed_merged
+for idx in {1..3}; do
+  eval cp TI_${idx}/TI_${idx}_with_all_echoes.nii.gz TIs_preprocessed_merged
+done
+fslmerge -t TIs_preprocessed_merged/had_4_prep TIs_preprocessed_merged/*.nii.gz
+fslmaths TIs_preprocessed_merged/had_4_prep -mul 0.5 TIs_preprocessed_merged/had_4_multite_prep_decoded_norm
+rm TIs_preprocessed_merged/had_4_prep.nii.gz
+rm TIs_preprocessed_merged/*with_all_echoes.nii.gz
+
+# extracting echo_1 images, this can be later used as single-echo dataset
+mkdir decoded_echo_1
+for idx in {1..3}; do
+  eval cp TI_${idx}/TI_${idx}_echo_1.nii.gz decoded_echo_1
+done
+fslmerge -t decoded_echo_1/had_4_e1_prep decoded_echo_1/*.nii.gz
+fslmaths decoded_echo_1/had_4_e1_prep -mul 0.5 decoded_echo_1/had_4_e1_prep_decoded_norm
+rm decoded_echo_1/had_4_e1_prep.nii.gz
+rm decoded_echo_1/TI_*_echo_1.nii.gz
+
+echo END SCRIPT 6
+

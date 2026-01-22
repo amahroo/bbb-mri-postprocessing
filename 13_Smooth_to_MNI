@@ -1,0 +1,46 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# Registration of smoothed images in structural space to MNI standard space
+# results saved in /fabber_out/*model*/struc_smooth/maps_mni/
+
+echo START SCRIPT 13
+cd $folder_nifti/fabber_out
+anat=$folder_nifti/anat/t1.anat
+
+for dir in output_modified_model output_old_model; do
+  mkdir $dir/struc_smooth/maps_mni
+  out=$dir/struc_smooth/maps_mni
+
+#texch
+  flirt -in $anat/T1_biascorr_brain -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -omat $out/texch_to_mni1.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12
+  flirt -in $dir/struc_smooth/texch_s5mm -ref $anat/T1_biascorr_brain -omat $out/texch_to_mni2.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6 
+  convert_xfm -concat $out/texch_to_mni1.mat -omat $out/texch_to_mni.mat $out/texch_to_mni2.mat
+  flirt -in $dir/struc_smooth/texch_s5mm -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -out $out/texch_to_mni -applyxfm -init $out/texch_to_mni.mat -interp trilinear
+
+#ATT
+  flirt -in $anat/T1_biascorr_brain -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -omat $out/att_to_mni1.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12
+  flirt -in $dir/struc_smooth/att_s5mm -ref $anat/T1_biascorr_brain -omat $out/att_to_mni2.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6
+  convert_xfm -concat $out/att_to_mni1.mat -omat $out/att_to_mni.mat $out/att_to_mni2.mat
+  flirt -in $dir/struc_smooth/att_s5mm -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -out $out/att_to_mni -applyxfm -init $out/att_to_mni.mat -interp trilinear
+
+#perfusion CBF
+  flirt -in $anat/T1_biascorr_brain -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -omat $out/perfusion_to_mni1.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12
+  flirt -in $dir/struc_smooth/perfusion_s5mm -ref $anat/T1_biascorr_brain -omat $out/perfusion_to_mni2.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6
+  convert_xfm -concat $out/perfusion_to_mni1.mat -omat $out/perfusion_to_mni.mat $out/perfusion_to_mni2.mat
+  flirt -in $dir/struc_smooth/perfusion_s5mm -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -out $out/perfusion_to_mni -applyxfm -init $out/perfusion_to_mni.mat -interp trilinear
+done
+
+# ITT is only estimated in modified model
+for dir in output_modified_model; do
+  out=$dir/struc_smooth/maps_mni
+
+  flirt -in $anat/T1_biascorr_brain -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -omat $out/itt_to_mni1.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 12
+  flirt -in $dir/struc_smooth/itt_s5mm -ref $anat/T1_biascorr_brain -omat $out/itt_to_mni2.mat -bins 256 -cost corratio -searchrx -90 90 -searchry -90 90 -searchrz -90 90 -dof 6
+  convert_xfm -concat $out/itt_to_mni1.mat -omat $out/itt_to_mni.mat $out/itt_to_mni2.mat
+  flirt -in $dir/struc_smooth/itt_s5mm -ref $FSLDIR/data/standard/MNI152_T1_2mm_brain -out $out/itt_to_mni -applyxfm -init $out/itt_to_mni.mat -interp trilinear
+done
+echo END SCRIPT 13
+

@@ -1,0 +1,32 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# split all Had-4 echoes and copies these into /mask/ref for later coregistration
+# create from first Had-4 echo in /mask -> "asl_mask" (=T1 volume in ASL space) for fabber model and
+# ASL2STRUC.mat rotation for perfusion calibration
+
+echo START SCRIPT 4
+# extracting all echoes from TI-1 of had_4 to be used as a reference for motion correction
+cd $folder_nifti
+mkdir mask mask/ref
+for f in $(eval echo "{1..$ECHOES}"); do
+  if [ "$INNER_LOOP_TI" = true ] ; then
+    fslroi encoded/had_4_multite/*Encoded*.nii.gz mask/ref/Encoded_had_4_TI_1_echo_$f $((f-1)) 1
+  else
+    fslroi encoded/had_4_multite/*Encoded*.nii.gz mask/ref/Encoded_had_4_TI_1_echo_$f $((4*(f-1))) 1
+  fi
+done
+
+# create transform from ASL space to highres T1
+flirt -in mask/ref/Encoded_had_4_TI_1_echo_1 -ref anat/t1.anat/T1_biascorr.nii.gz -out mask/ASL2STRUC.nii.gz -omat mask/ASL2STRUC.mat -bins 256 -cost mutualinfo -searchrx -30 30 -searchry -30 30 -searchrz -30 30 -dof 6 -paddingsize 0 -interp trilinear
+convert_xfm -omat mask/STRUC2ASL.mat -inverse mask/ASL2STRUC.mat
+
+# FLIRT brain-extracted T1 to ASL space -> ASLBET
+flirt -in anat/t1.anat/T1_biascorr_brain.nii.gz -applyxfm -init mask/STRUC2ASL.mat -out mask/ASLBET.nii.gz -paddingsize 0 -interp trilinear -ref mask/ref/Encoded_had_4_TI_1_echo_1
+
+# asl_mask from ASLBET is the input for fabber multiTE model
+fslmaths mask/ASLBET.nii.gz -bin mask/asl_mask.nii.gz
+echo END SCRIPT 4
+

@@ -1,0 +1,40 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# copies DICOM data into /analyzed/dicom/
+# converts to nifti copied into /analyzed/nifti/(anat,encoded,m0,perfusion)
+
+echo START SCRIPT 2
+# copy dicoms from $DATADIR to /analyzed/dicom/
+cd $DATADIR
+mkdir analyzed
+cd $DATADIR/analyzed
+mkdir dicom nifti
+cd $DATADIR
+rsync -av --progress --exclude="analyzed" $DATADIR/ analyzed/dicom/
+
+# converting dicoms to nifti
+cd $folder_nifti
+mkdir encoded encoded/had_4_multite encoded/had_8_singlete anat m0 perfusion perfusion/had_4_multite perfusion/had_8_singlete
+cd $DATADIR/analyzed
+dcm2niix -f %s_%d_%p -m y -z y -o $folder_nifti "dicom"
+
+# sorting
+cd $folder_nifti
+mv *Encoded_Images_Had04* encoded/had_4_multite
+mv *Encoded_Images_Had08* encoded/had_8_singlete
+mv *Perfusion_Images_Had04* perfusion/had_4_multite
+mv *Perfusion_Images_Had08* perfusion/had_8_singlete
+mv *ss* m0
+mv *[tT]1* anat
+
+mv *EncodedImages_Had04* encoded/had_4_multite
+mv *EncodedImages_Had08* encoded/had_8_singlete
+mv *DecodedImages_Had04* perfusion/had_4_multite
+mv *DecodedImages_Had08* perfusion/had_8_singlete
+mv *M0* m0
+
+echo END SCRIPT 2
+

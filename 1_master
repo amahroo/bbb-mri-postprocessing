@@ -1,0 +1,66 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) Amnah Mahroo.
+# All rights reserved.
+
+DATADIR=/home/ubuntufsl/Desktop/data
+SCRIPTDIR=/home/ubuntufsl/Desktop/FSL_scripts
+FSLDEVBINDIR=/home/ubuntufsl/fsldev/bin
+
+# options
+APPLY_DIST_CORR=true
+
+# sequence parameters
+PLD_LENGTH=2 # Had-8 PLD length (not averages)
+PLD_START8=0.6 # Had-8 PLD start [s]
+PLD_INC=0.2 # Had-8 PLD increment [s]
+PLD_START4=0.5 # Had-4 PLD start [s]
+M0_TI_VALUES="300,1300,2300" # TI values [ms] of M0 measurements
+TE_VALUE=0.01336 # pCASL echo time [s]
+#TE_VALUE=0.01266 # pCASL echo time [s]
+TE_VALUES_HAD4=(0.014 0.042 0.07 0.098 0.126 0.154 0.182 0.21) # echo times [s] for Had-4 (longer because of 180° SE pulse)
+#TE_VALUES_HAD4=(0.0133 0.0399 0.0665 0.0931 0.1197 0.1463 0.1729 0.1995) # echo times [s] for Had-4 (longer because of 180° SE pulse)
+SUB8=0.4 # subbolus duration [s] in Had-8
+SUB4=1.0 # subbolus duration [s] in Had-4
+ECHO_SPACING=0.00051 # required if APPLY_DIST_CORR=true only: echo spacing [s] of M0 measurement # WORKS ONLY IF SAME FOR ALL MEASUREMENTS !
+EPI_FACTOR=16 # required if APPLY_DIST_CORR=true only: epi factor of M0 measurement # WORKS ONLY IF SAME FOR ALL MEASUREMENTS !
+#EPI_FACTOR=12 # required if APPLY_DIST_CORR=true only: epi factor of M0 measurement # WORKS ONLY IF SAME FOR ALL MEASUREMENTS !
+#INNER_LOOP_TI=false # true if inner loop is for TIs and outer loop for echoes (true: Collection, false: gammaSTAR)
+INNER_LOOP_TI=true # true if inner loop is for TIs and outer loop for echoes (true: Collection, false: gammaSTAR)
+CGAIN=10.0 # additional scaling factor is 10x higher in case of background suppression (i.e. NOT for M0 measurement without BS)
+
+# model parameters
+LAMBDA=0.9 # blood-brain water partition coefficient (averaged GM and WM)
+# relaxation times dependent on magnetic field strength
+# reference for relaxation times: Atlas, S. W. (2009). Magnetic Resonance Imaging of the Brain and Spine. Philadelphia, PA: Wolters Kluwer Health/ Lippincott Williams &Wilkins
+T1t=1.331 # T1 [s] of tissue (here: gray matter) 1.5 T -> 1.0, 3 T -> 1.331
+T1a=1.664 # T1 [s] of arterial blood 1.5 T -> 1.435, 3 T -> 1.664
+T2t=0.085 # T2* [s] of tissue (here: gray matter) 1.5 T -> 0.1, 3 T -> 0.085
+T2a=0.165 # T2* [s] of arterial blood 1.5 T -> 0.235, 3 T -> 0.165
+# reference for relaxation times: Stanisz et al. MRM (2005) 54:507-512
+# T1t=1.82 # T1 [s] of tissue (here: gray matter) 1.5 T -> 1.124 3 T -> 1.82
+# T1a=1.932 # T1 [s] of arterial blood 1.5 T -> 1.441, 3 T -> 1.932
+# T2t=0.099 # T2* [s] of tissue (here: gray matter) 1.5 T -> 0.095, 3 T -> 0.099
+# T2a=0.275 # T2* [s] of blood 1.5 T -> 0.290, 3 T -> 0.275
+LABEL_EFF=0.85 # pCASL labeling efficiency
+GAUSS_FILTER_FWHM=5.0 # used for Gauss smoothing 2*voxel_size usually applied (voxel size might differ from resolution in case of interpolation!)
+
+folder_nifti=$DATADIR/analyzed/nifti
+ECHOES=${#TE_VALUES_HAD4[@]}
+export folder_nifti
+export M0_TI_VALUES
+
+# execute scripts
+source $SCRIPTDIR/2_dcm2niix
+source $SCRIPTDIR/3_Structural_Preprocessing
+source $SCRIPTDIR/4_Mask_ASL_Space
+source $SCRIPTDIR/5_Reg_M0_to_ASL_with_topup
+source $SCRIPTDIR/6_HAD_4_MultiTE_MotionCorrection_Decoding
+source $SCRIPTDIR/7_HAD_8_SingleTE_MotionCorrection_Decoding
+source $SCRIPTDIR/8_Concatenating_Datasets
+source $SCRIPTDIR/9_FabberCommand_Merged # WORKS FOR PLD_LENGTH=2 AND ECHOES=8 ONLY !
+python3 $SCRIPTDIR/10_M0_Fitting.py
+source $SCRIPTDIR/11_Perfusion_Calibration_Voxelwise_SatRecov
+source $SCRIPTDIR/12_Smoothing_and_ROI_Stats
+source $SCRIPTDIR/13_Smooth_to_MNI
+

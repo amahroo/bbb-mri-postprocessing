@@ -1,0 +1,12 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# preprocessing MPRAGE data and copies results into /anat/t1.anat
+
+echo START SCRIPT 3
+# running fsl_anat to do structural preprocessing
+fsl_anat -i $folder_nifti/anat/*[tT]1*.nii.gz -o $folder_nifti/anat/t1
+echo END SCRIPT 3
+

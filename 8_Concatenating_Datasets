@@ -1,0 +1,36 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# This script just concatenate motion and distortion corrected, decoded, and normalized Had-8 and Had-4 images together
+# The order is first single-TE Had-8 with $PLD_LENGTH and then multi-TE Had-4 -> $PLD_LENGTH*7 + $ECHOES*3
+# results are saved in /encoded/had_8_singlete_had_4_multite_merged/ as "had_8_singlete_had_4_multite_merged"
+
+echo START SCRIPT 8
+enc_dir=$folder_nifti/encoded
+cd $enc_dir
+mkdir had_8_singlete_had_4_multite_merged 
+
+# copy all single-TE Had-8 measurements
+cd $enc_dir/had_8_singlete/decoded_asl_space
+for dir in */; do
+  cp $dir/*prep_decoded_norm* $enc_dir/had_8_singlete_had_4_multite_merged
+done
+cd $enc_dir
+
+# merge all single-TE Had-8 measurements
+fslmerge -t $enc_dir/had_8_singlete_had_4_multite_merged/had_8_singlete_prep_decoded_norm_meas_merged.nii.gz $enc_dir/had_8_singlete_had_4_multite_merged/*.nii.gz
+cd $enc_dir/had_8_singlete_had_4_multite_merged
+ls | grep -P "^had_8_singlete_prep_decoded_norm_meas_[0-9]+.nii.gz$" | xargs -d"\n" rm
+cd $enc_dir
+
+# copy multi-TE Had-4 data
+cp $enc_dir/had_4_multite/decoded_asl_space/TIs_preprocessed_merged/had_4_multite_prep_decoded_norm.nii.gz had_8_singlete_had_4_multite_merged
+
+# concatenating Had-8 and Had-4 data
+merged_dir=$enc_dir/had_8_singlete_had_4_multite_merged
+fslmerge -t $merged_dir/had_8_singlete_had_4_multite_merged $merged_dir/had_8_singlete_prep_decoded_norm_meas_merged.nii.gz $merged_dir/had_4_multite_prep_decoded_norm.nii.gz
+rm $merged_dir/had_*_prep_decoded_norm*.nii.gz
+echo END SCRIPT 8
+

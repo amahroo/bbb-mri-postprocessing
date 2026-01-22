@@ -1,0 +1,80 @@
+#!/bin/bash
+# Copyright (c) Fraunhofer MEVIS, Germany. 
+# Copyright (c) 2026 Amnah Mahroo.
+# All rights reserved.
+
+# steps include motion and distortion correction, decoding of Had-8 data, and normalizing 
+# merged results are saved in /encoded/had_8_singlete/decoded_asl_space/meas_x as "had_8_singlete_prep_decoded_norm"
+
+echo START SCRIPT 7
+# split encoded images
+cd $folder_nifti/encoded/had_8_singlete
+mkdir decoded_asl_space
+cp *Encoded*.nii.gz decoded_asl_space
+cd decoded_asl_space
+fslsplit *Encoded*.nii.gz
+rm *Encoded*.nii.gz
+
+# moving files according to number of measurement
+mkdir $(eval echo "meas_{1..$PLD_LENGTH}")
+for f in $(eval echo "{1..$PLD_LENGTH}"); do
+  if [ "$INNER_LOOP_TI" = true ] ; then
+    if (($((f-1)) < 10)); then 
+      eval mv "vol00{0$((f-1))..$((8*PLD_LENGTH-1))..$PLD_LENGTH}.nii.gz" "meas_$f"
+    else
+      eval mv "vol00{$((f-1))..$((8*PLD_LENGTH-1))..$PLD_LENGTH}.nii.gz" "meas_$f"
+    fi
+  else
+    if (($((8*f-8)) < 10)); then
+      eval mv "vol00{0$((8*f-8))..$((8*f-1))..1}.nii.gz" "meas_$f"
+    else
+      eval mv "vol00{$((8*f-8))..$((8*f-1))..1}.nii.gz" "meas_$f"
+    fi
+  fi
+done
+
+for dir in *; do
+  mkdir $dir/mc
+  
+  # merge all encoded images
+  fslmerge -t $dir/mc/images_merged_for_moco $dir/*.nii.gz
+  rm $dir/*vol*.nii.gz
+
+  # motion correction
+  mcflirt -in $dir/mc/images_merged_for_moco -plots -report -reffile $folder_nifti/mask/ref/Encoded_had_4_TI_1_echo_1 -out $dir/mc/images_merged_for_moco_mcf
+  
+  if [ "$APPLY_DIST_CORR" = true ] ; then
+    # apply distortion field from m0 measurement and split
+    cp $folder_nifti/m0/reg_m0_to_asl/m0_topup_results* ./
+    cp $folder_nifti/m0/reg_m0_to_asl/acq_parameters.txt ./  
+    applytopup --imain=$dir/mc/images_merged_for_moco_mcf --datain=acq_parameters.txt --inindex=2 --topup=m0_topup_results --method=jac --out=$dir/mc/images_merged_corr
+    fslsplit $dir/mc/images_merged_corr $dir/vol -t
+  else
+    fslsplit $dir/mc/images_merged_for_moco_mcf $dir/vol -t
+  fi
+
+  # decoding with following scheme
+  #abs(a-b+c-d+e-f+g-h) = TI-1
+  #abs(a-b+c-d-e+f-g+h) = TI-2
+  #abs(a-b-c+d-e+f+g-h) = TI-3
+  #abs(a-b-c+d+e-f-g+h) = TI-4
+  #abs(a+b-c-d+e+f-g-h) = TI-5
+  #abs(a+b-c-d-e-f+g+h) = TI-6
+  #abs(a+b+c+d-e-f-g-h) = TI-7
+  fslmaths $dir/vol0000 -sub $dir/vol0001 -add $dir/vol0002 -sub $dir/vol0003 -add $dir/vol0004 -sub $dir/vol0005 -add $dir/vol0006 -sub $dir/vol0007 $dir/TI_1
+  fslmaths $dir/vol0000 -sub $dir/vol0001 -add $dir/vol0002 -sub $dir/vol0003 -sub $dir/vol0004 -add $dir/vol0005 -sub $dir/vol0006 -add $dir/vol0007 $dir/TI_2
+  fslmaths $dir/vol0000 -sub $dir/vol0001 -sub $dir/vol0002 -add $dir/vol0003 -sub $dir/vol0004 -add $dir/vol0005 -add $dir/vol0006 -sub $dir/vol0007 $dir/TI_3
+  fslmaths $dir/vol0000 -sub $dir/vol0001 -sub $dir/vol0002 -add $dir/vol0003 -add $dir/vol0004 -sub $dir/vol0005 -sub $dir/vol0006 -add $dir/vol0007 $dir/TI_4
+  fslmaths $dir/vol0000 -add $dir/vol0001 -sub $dir/vol0002 -sub $dir/vol0003 -add $dir/vol0004 -add $dir/vol0005 -sub $dir/vol0006 -sub $dir/vol0007 $dir/TI_5
+  fslmaths $dir/vol0000 -add $dir/vol0001 -sub $dir/vol0002 -sub $dir/vol0003 -sub $dir/vol0004 -sub $dir/vol0005 -add $dir/vol0006 -add $dir/vol0007 $dir/TI_6
+  fslmaths $dir/vol0000 -add $dir/vol0001 -add $dir/vol0002 -add $dir/vol0003 -sub $dir/vol0004 -sub $dir/vol0005 -sub $dir/vol0006 -sub $dir/vol0007 $dir/TI_7
+  rm $dir/*vol*.nii.gz
+
+  # multiplying with 0.25 to normalize the volumes after Had-8 decoding and merge all images
+  fslmerge -t $dir/had_8_prep $dir/*TI_*.nii.gz
+  fslmaths $dir/had_8_prep -mul 0.25 $dir/had_8_singlete_prep_decoded_norm_$dir
+  rm $dir/had_8_prep.nii.gz
+  rm -rf $dir/mc
+done
+echo END SCRIPT 7
+
